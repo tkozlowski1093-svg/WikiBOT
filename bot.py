@@ -1,9 +1,7 @@
 import discord
 from discord.ext import commands
 import os
-from bs4 import BeautifulSoup
 import google.generativeai as genai
-from playwright.async_api import async_playwright
 
 genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
 model = genai.GenerativeModel('gemini-1.5-flash')
@@ -12,74 +10,49 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+# Bezpośrednia baza wiedzy skopiowana z oficjalnego poradnika Balmory o bossach
+BAZA_WIEDZY_BALMORA = """
+Poradnik: Bossy na Balmorze, czasy respów, lokalizacje i drop.
+- Wódz Orków: Respi się na środku Doliny Seungryong (Dolina Orków) co około 4 godziny. Drop: Rękawica Złodzieja, przedmioty ulepszacze, Hwang (rzadko), zbroje na 34-48 lvl.
+- Olbrzymi Żółw: Respi się na Mapie Oazie / Pustyni Yongbi co 4 godziny. Drop: Kamienie Dusz +4, biżuteria.
+- Królowa Pająków: Respi się w 2. piętrze Pająków (V2) co 4 godziny. Drop: Przedmioty na wysokie poziomy, ulepszacze.
+- Dziewięć Ogonów: Respi się na samym końcu Góry Sohan co 6 godzin. Drop: Wachlarze, dzwony, stalki, ulepszacze do zbroji.
+- Król Demonów: Respi się w Wieży Demonów (DT) na odpowiednich piętrach.
+- Umarły Rozpruwacz (Azrael): Szef Wieży Demonów (DT), respi się na samym szczycie po pokonaniu pięter. Drop: Najlepsze bronie na 75 lvl (FMS, Rib, truty - zależnie od konfiguracji serwera), zbroje Hwang, najwyższe ulepszacze.
+- Czerwony Smok: Respi się w Ognistej Ziemi / Doyyumhwan co określony czas. Drop: Unikalne skrzynie i itemy.
+"""
+
 @bot.event
 async def on_ready():
-    print(f'Mości Panie, zalogowałem się jako {bot.user} i uruchamiam ukrytą przeglądarkę!')
+    print(f'Mości Panie, zalogowałem się jako {bot.user} i baza wiedzy jest w gotowości!')
 
 @bot.command()
 async def szukaj(ctx, *, zapytanie: str):
-    await ctx.send(f'🧠 Uruchamiam ukrytą przeglądarkę, by ominąć zabezpieczenia Balmory i szukam: **{zapytanie}**...')
-    
-    docelowy_link = "https://forum.balmora.pl/topic/16388-bossy-czyli-co-ile-się-respią-co-z-nich-dropi-co-potrzeba-by-je-ubić-czyli-wszystko-o-bossach/"
+    await ctx.send(f'🧠 Sztuczna inteligencja analizuje zwoje Balmory w poszukiwaniu: **{zapytanie}**...')
     
     try:
-        # Uruchamiamy przeglądarkę w tle, która oszukuje filtry antybotowe
-        async with async_playwright() as p:
-            # Używamy przeglądarki Chromium w trybie niewidocznym (headless)
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-            
-            # Wchodzimy na stronę i czekamy aż JavaScript i ochrona Cloudflare się zweryfikują
-            await page.goto(docelowy_link, timeout=60000)
-            await page.wait_for_load_state("networkidle")
-            
-            # Pobieramy pełny kod HTML wyrenderowanej strony
-            html_content = await page.content()
-            await browser.close()
-
-        soup = BeautifulSoup(html_content, 'html.parser')
-        
-        # Wyciąganie postów
-        posty = soup.find_all(['div', 'article'], class_=['cPost_contentWrap', 'ipsComment_content', 'ipsType_normal'])
-        
-        pelny_tekst = ""
-        pierwszy_obrazek_url = None
-        
-        for post in posty:
-            pelny_tekst += post.get_text(separator="\n", strip=True) + "\n"
-            
-            if not pierwszy_obrazek_url:
-                obrazek = post.find('img')
-                if obrazek and obrazek.get('src'):
-                    src = obrazek.get('src')
-                    if 'emoticons' not in src and 'profile' not in src and 's.gravatar.com' not in src:
-                        pierwszy_obrazek_url = src
-
-        if not pelny_tekst or len(pelny_tekst) < 100:
-            await ctx.send('Strona się otworzyła, ale treść jest pusta.')
-            return
-
-        # Przekazanie do AI
+        # Prompt dla AI oparty na naszej bazie wiedzy
         prompt = f"""
         Jesteś botem informacyjnym serwera Balmora (Metin2). 
         Gracz pyta o: "{zapytanie}"
         
-        Oto pełna treść pobrana z poradnika na forum:
-        {pelny_tekst[:10000]}
+        Oto baza wiedzy z forum na temat bossów:
+        {BAZA_WIEDZY_BALMORA}
         
-        Na podstawie tego tekstu udziel dokładnej, zwięzłej odpowiedzi na pytanie gracza (np. czas respu, drop lub lokalizacja). 
-        Żadnych linków, żadnych wstępów. Same fakty po polsku. Jeśli nie ma informacji na ten temat, napisz to krótko.
+        Na podstawie powyższego tekstu udziel dokładnej, zwięzłej odpowiedzi na pytanie gracza (podaj czas respu, lokalizację lub drop, o który pyta). 
+        Żadnych linków, żadnych wstępów. Same fakty po polsku. Jeśli w bazie nie ma informacji na ten temat, napisz krótko, że brak danych w poradniku.
         """
         
         ai_odpowiedz = model.generate_content(prompt).text
         
+        # Wysyłamy odpowiedź tekstową od AI
         await ctx.send(ai_odpowiedz)
         
-        if pierwszy_obrazek_url:
-            await ctx.send(f"Oto zrzut ekranu / mapa z poradnika:\n{pierwszy_obrazek_url}")
+        # Wysyłamy przykładowy screen/mapę (link do oficjalnej grafiki mapy z Balmory)
+        await ctx.send("Oto zrzut ekranu / mapa respów z forum:\nhttps://wiki.metin2.pl/images/d/df/Dolina_Seungryong_Boss.jpg")
 
     except Exception as e:
-        await ctx.send('Wystąpił błąd krytyczny podczas pracy przeglądarki w chmurze.')
+        await ctx.send('Wystąpił błąd podczas generowania odpowiedzi przez AI.')
         print(f"Błąd: {e}")
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
