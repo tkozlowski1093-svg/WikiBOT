@@ -17,39 +17,44 @@ async def on_ready():
 async def szukaj(ctx, *, zapytanie: str):
     await ctx.send(f'🔍 Przeszukuję kroniki forum Balmory o: **{zapytanie}**...')
     
-    # Filtr wymuszający szukanie tylko na Balmorze
     zapytanie_z_filtrem = f"site:forum.balmora.pl {zapytanie}"
     znaleziony_link = None
     
     try:
-        # Używamy bezpiecznego, wewnętrznego API DuckDuckGo, które omija blokady
+        # Pobieramy 5 wyników, żeby ominąć reklamy DuckDuckGo
         with DDGS() as ddgs:
-            wyniki = list(ddgs.text(zapytanie_z_filtrem, max_results=1))
-            if wyniki:
-                znaleziony_link = wyniki[0]['href']
+            wyniki = list(ddgs.text(zapytanie_z_filtrem, max_results=5))
+            for wynik in wyniki:
+                # Sprawdzamy, czy link NA PEWNO prowadzi na forum Balmory
+                if 'forum.balmora.pl' in wynik.get('href', ''):
+                    znaleziony_link = wynik['href']
+                    break # Znaleźliśmy poprawny link, przerywamy szukanie
             
         if not znaleziony_link:
-            await ctx.send('Niestety, Mości Panie, nie znalazłem żadnego pasującego tematu na forum.')
+            await ctx.send('Niestety, Mości Panie, nie znalazłem żadnego pasującego tematu na forum Balmory.')
             return
 
-        # Bot wchodzi w znaleziony link na forum
+        # Wchodzimy na stronę forum
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
         temat_response = requests.get(znaleziony_link, headers=headers)
         temat_soup = BeautifulSoup(temat_response.text, 'html.parser')
         
-        # Szukanie treści posta na forum
-        post = temat_soup.find('article') or temat_soup.find('div', class_='cPost_contentWrap')
+        # Balmora działa najpewniej na silniku IPS, szukamy typowych dla niego kontenerów z tekstem
+        post = temat_soup.find('div', class_='cPost_contentWrap') or temat_soup.find('div', class_='ipsType_normal') or temat_soup.find('article')
         
         if post:
+            # Wyciągamy tekst
             tekst = post.get_text(separator="\n", strip=True)[:1000]
             
-            # Pobieranie pierwszego sensownego obrazka
+            # Pobieramy obrazek (wykluczając emotikony, awatary i elementy profilu)
             obrazek = post.find('img')
             obrazek_url = None
-            if obrazek and obrazek.get('src') and 'emoticons' not in obrazek.get('src') and 'profile' not in obrazek.get('src'):
-                obrazek_url = obrazek.get('src')
+            if obrazek and obrazek.get('src'):
+                src = obrazek.get('src')
+                if 'emoticons' not in src and 'profile' not in src and 'avatar' not in src:
+                    obrazek_url = src
                 
             odpowiedz = f"**Znalazłem odpowiedź!**\n🔗 Link: {znaleziony_link}\n\n**Fragment:**\n{tekst}...\n"
             if obrazek_url:
@@ -57,7 +62,7 @@ async def szukaj(ctx, *, zapytanie: str):
                 
             await ctx.send(odpowiedz)
         else:
-            await ctx.send(f'Znalazłem temat, ale ma on nietypową budowę. Sprawdź sam: {znaleziony_link}')
+            await ctx.send(f'Znalazłem poprawny temat, ale skrypt nie potrafi odnaleźć w nim samego tekstu poradnika. Sprawdź tu: {znaleziony_link}')
 
     except Exception as e:
         await ctx.send('Wybacz, Mości Panie. Wystąpił błąd podczas przeszukiwania zwojów.')
