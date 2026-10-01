@@ -1,9 +1,9 @@
 import discord
 from discord.ext import commands
 import os
-import requests
 from bs4 import BeautifulSoup
 import google.generativeai as genai
+from playwright.async_api import async_playwright
 
 genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
 model = genai.GenerativeModel('gemini-1.5-flash')
@@ -14,33 +14,32 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f'Mości Panie, zalogowałem się jako {bot.user} i maskuję się jako przeglądarka!')
+    print(f'Mości Panie, zalogowałem się jako {bot.user} i uruchamiam ukrytą przeglądarkę!')
 
 @bot.command()
 async def szukaj(ctx, *, zapytanie: str):
-    await ctx.send(f'🧠 Podszywam się pod przeglądarkę i czytam poradnik o: **{zapytanie}**...')
+    await ctx.send(f'🧠 Uruchamiam ukrytą przeglądarkę, by ominąć zabezpieczenia Balmory i szukam: **{zapytanie}**...')
     
     docelowy_link = "https://forum.balmora.pl/topic/16388-bossy-czyli-co-ile-się-respią-co-z-nich-dropi-co-potrzeba-by-je-ubić-czyli-wszystko-o-bossach/"
     
-    # Bardzo bogate nagłówki, które oszukują zabezpieczenia forum (Cloudflare / Invision)
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Referer': 'https://forum.balmora.pl/',
-        'Connection': 'keep-alive'
-    }
-    
     try:
-        response = requests.get(docelowy_link, headers=headers)
-        
-        if response.status_code != 200:
-            await ctx.send(f'Ojej, forum odrzuciło nas z kodem błędu: {response.status_code}')
-            return
+        # Uruchamiamy przeglądarkę w tle, która oszukuje filtry antybotowe
+        async with async_playwright() as p:
+            # Używamy przeglądarki Chromium w trybie niewidocznym (headless)
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+            
+            # Wchodzimy na stronę i czekamy aż JavaScript i ochrona Cloudflare się zweryfikują
+            await page.goto(docelowy_link, timeout=60000)
+            await page.wait_for_load_state("networkidle")
+            
+            # Pobieramy pełny kod HTML wyrenderowanej strony
+            html_content = await page.content()
+            await browser.close()
 
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(html_content, 'html.parser')
         
-        # Szukamy zawartości postów na silniku forum
+        # Wyciąganie postów
         posty = soup.find_all(['div', 'article'], class_=['cPost_contentWrap', 'ipsComment_content', 'ipsType_normal'])
         
         pelny_tekst = ""
@@ -57,7 +56,7 @@ async def szukaj(ctx, *, zapytanie: str):
                         pierwszy_obrazek_url = src
 
         if not pelny_tekst or len(pelny_tekst) < 100:
-            await ctx.send('Strona się załadowala, ale wciąż jest pusta. Prawdopodobnie wymagane jest ominięcie ochrony JS.')
+            await ctx.send('Strona się otworzyła, ale treść jest pusta.')
             return
 
         # Przekazanie do AI
@@ -80,7 +79,7 @@ async def szukaj(ctx, *, zapytanie: str):
             await ctx.send(f"Oto zrzut ekranu / mapa z poradnika:\n{pierwszy_obrazek_url}")
 
     except Exception as e:
-        await ctx.send('Wystąpił błąd krytyczny przy pobieraniu danych.')
+        await ctx.send('Wystąpił błąd krytyczny podczas pracy przeglądarki w chmurze.')
         print(f"Błąd: {e}")
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
