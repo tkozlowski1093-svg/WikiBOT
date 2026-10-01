@@ -5,8 +5,8 @@ import google.generativeai as genai
 
 # Konfiguracja klucza AI
 genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
-# Używamy najprostszego i najbardziej stabilnego identyfikatora modelu
-model = genai.GenerativeModel('gemini-1.5-flash-latest')
+# Poprawna nazwa aktualnego modelu
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -24,7 +24,7 @@ Poradnik: Bossy na Balmorze, czasy respów, lokalizacje i drop.
 
 @bot.event
 async def on_ready():
-    print(f'Mości Panie, zalogowałem się jako {bot.user} i jestem w Pełnej gotowości!')
+    print(f'Mości Panie, zalogowałem się jako {bot.user} i bot działa perfekcyjnie!')
 
 @bot.command()
 async def szukaj(ctx, *, zapytanie: str):
