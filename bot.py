@@ -21,9 +21,9 @@ async def on_ready():
 
 @bot.command()
 async def szukaj(ctx, *, zapytanie: str):
-     zapytanie_lower = zapytanie.lower()
-     odpowiedz = None
-     
+    zapytanie_lower = zapytanie.lower()
+    odpowiedz = None
+    
     # Szukamy pasującego słowa kluczowego w bazie
     for klucz, info in BAZA_WIEDZY.items():
         if klucz in zapytanie_lower or zapytanie_lower in klucz:
@@ -31,7 +31,6 @@ async def szukaj(ctx, *, zapytanie: str):
             break
             
     if not odpowiedz:
-        # Jeśli nie znalazł konkretnego klucza, zwraca ogólny spis
         odpowiedz = "Oto dostępne bossy w bazie Balmory: Wódz Orków, Olbrzymi Żółw, Królowa Pająków, Dziewięć Ogonów, Umarły Rozpruwacz. Wpisz dokładniej, o którego pytasz!"
 
     await ctx.send(f"**Wynik z bazy wiedzy Balmory:**\n{odpowiedz}")
