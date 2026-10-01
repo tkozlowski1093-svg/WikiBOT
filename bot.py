@@ -1,55 +1,42 @@
 import discord
 from discord.ext import commands
 import os
-import google.generativeai as genai
-
-# Konfiguracja klucza AI
-genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
-# Poprawna nazwa aktualnego modelu
-model = genai.GenerativeModel('gemini-1.5-flash')
 
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-BAZA_WIEDZY_BALMORA = """
-Poradnik: Bossy na Balmorze, czasy respów, lokalizacje i drop.
-- Wódz Orków: Respi się na środku Doliny Seungryong (Dolina Orków) co około 4 godziny. Drop: Rękawica Złodzieja, przedmioty ulepszacze, Hwang (rzadko), zbroje na 34-48 lvl.
-- Olbrzymi Żółw: Respi się na Mapie Oazie / Pustyni Yongbi co 4 godziny. Drop: Kamienie Dusz +4, biżuteria.
-- Królowa Pająków: Respi się w 2. piętrze Pająków (V2) co 4 godziny. Drop: Przedmioty na wysokie poziomy, ulepszacze.
-- Dziewięć Ogonów: Respi się na samym końcu Góry Sohan co 6 godzin. Drop: Wachlarze, dzwony, stalki, ulepszacze do zbroji.
-- Król Demonów: Respi się w Wieży Demonów (DT) na odpowiednich piętrach.
-- Umarły Rozpruwacz (Azrael): Szef Wieży Demonów (DT), respi się na samym szczycie po pokonaniu pięter. Drop: Najlepsze bronie na 75 lvl (FMS, Rib, truty), zbroje Hwang, najwyższe ulepszacze.
-"""
+# Nasza lokalna baza wiedzy o bossach na Balmorze
+BAZA_WIEDZY = {
+    "orzek": "Wódz Orków respi się na środku Doliny Seungryong (Dolina Orków) co około 4 godziny. Drop: Rękawica Złodzieja, ulepszacze, zbroje na 34-48 lvl.",
+    "żółw": "Olbrzymi Żółw respi się na Pustyni Yongbi (Mapa Oaza) co 4 godziny. Drop: Kamienie Dusz +4, biżuteria.",
+    "pająk": "Królowa Pająków respi się w 2. piętrze Pająków (V2) co 4 godziny. Drop: Przedmioty na wysokie poziomy, ulepszacze.",
+    "ogony": "Dziewięć Ogonów respi się na samym końcu Góry Sohan co 6 godzin. Drop: Wachlarze, dzwony, stalki.",
+    "rozpruwacz": "Umarły Rozpruwacz (Azrael) respi się na szczycie Wieży Demonów (DT). Drop: Bronie na 75 lvl (FMS, Rib), zbroje Hwang."
+}
 
 @bot.event
 async def on_ready():
-    print(f'Mości Panie, zalogowałem się jako {bot.user} i bot działa perfekcyjnie!')
+    print(f'Mości Panie, zalogowałem się jako {bot.user} i baza wiedzy jest aktywna!')
 
 @bot.command()
 async def szukaj(ctx, *, zapytanie: str):
-    await ctx.send(f'🧠 Przetwarzam zapytanie o: **{zapytanie}**...')
-    
-    try:
-        prompt = f"""
-        Jesteś botem informacyjnym serwera Balmora (Metin2). 
-        Gracz pyta o: "{zapytanie}"
-        
-        Oto baza wiedzy z forum na temat bossów:
-        {BAZA_WIEDZY_BALMORA}
-        
-        Na podstawie tego tekstu udziel dokładnej, zwięzłej odpowiedzi na pytanie gracza (podaj czas respu, lokalizację lub drop, o który pyta). 
-        Żadnych linków, żadnych wstępów. Same fakty po polsku. Jeśli w bazie nie ma informacji na ten temat, napisz krótko, że brak danych w poradniku.
-        """
-        
-        response = model.generate_content(prompt)
-        ai_odpowiedz = response.text
-        
-        await ctx.send(ai_odpowiedz)
-        await ctx.send("Oto zrzut ekranu / mapa respów z forum:\nhttps://wiki.metin2.pl/images/d/df/Dolina_Seungryong_Boss.jpg")
+     zapytanie_lower = zapytanie.lower()
+     odpowiedz = None
+     
+    # Szukamy pasującego słowa kluczowego w bazie
+    for klucz, info in BAZA_WIEDZY.items():
+        if klucz in zapytanie_lower or zapytanie_lower in klucz:
+            odpowiedz = info
+            break
+            
+    if not odpowiedz:
+        # Jeśli nie znalazł konkretnego klucza, zwraca ogólny spis
+        odpowiedz = "Oto dostępne bossy w bazie Balmory: Wódz Orków, Olbrzymi Żółw, Królowa Pająków, Dziewięć Ogonów, Umarły Rozpruwacz. Wpisz dokładniej, o którego pytasz!"
 
-    except Exception as e:
-        await ctx.send(f'Wystąpił błąd techniczny: {e}')
-        print(f"Błąd: {e}")
+    await ctx.send(f"**Wynik z bazy wiedzy Balmory:**\n{odpowiedz}")
+    
+    # Automatycznie wrzucamy screen/mapę z forum
+    await ctx.send("Oto zrzut ekranu / mapa respów z forum:\nhttps://wiki.metin2.pl/images/d/df/Dolina_Seungryong_Boss.jpg")
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
