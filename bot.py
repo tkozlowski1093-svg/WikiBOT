@@ -6,9 +6,7 @@ from bs4 import BeautifulSoup
 import urllib.parse
 import google.generativeai as genai
 
-# Konfiguracja AI (pobiera klucz z Railway)
 genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
-# Używamy najnowszego, darmowego i szybkiego modelu
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 intents = discord.Intents.default()
@@ -17,11 +15,11 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f'Mości Panie, zalogowałem się jako {bot.user} i mój moduł AI jest gotowy do pracy!')
+    print(f'Mości Panie, zalogowałem się jako {bot.user} i ukrywam linki przed graczami!')
 
 @bot.command()
 async def szukaj(ctx, *, zapytanie: str):
-    await ctx.send(f'🧠 AI analizuje zwoje forum Balmory w poszukiwaniu: **{zapytanie}**...')
+    await ctx.send(f'🧠 Przeszukuję kroniki Balmory i układam odpowiedź na temat: **{zapytanie}**...')
     
     zapytanie_z_filtrem = f"site:forum.balmora.pl/topic {zapytanie}"
     znaleziony_link = None
@@ -49,20 +47,19 @@ async def szukaj(ctx, *, zapytanie: str):
                 break
                 
         if not znaleziony_link:
-            await ctx.send('Niestety, nie znalazłem żadnego pasującego tematu. Serwery milczą.')
+            await ctx.send('Niestety, Mości Panie, nie znalazłem informacji na ten temat na forum.')
             return
 
-        # Pobieramy stronę z forum
+        # Pobieramy treść z forum
         temat_response = requests.get(znaleziony_link, headers=headers)
         temat_soup = BeautifulSoup(temat_response.text, 'html.parser')
         
         post = temat_soup.find('article') or temat_soup.find('div', class_='cPost_contentWrap')
         
         if post:
-            # Pobieramy więcej tekstu dla AI (do 3000 znaków), aby miało pełen kontekst
             surowy_tekst = post.get_text(separator="\n", strip=True)[:3000]
             
-            # Tworzymy instrukcję (prompt) dla sztucznej inteligencji
+            # Instrukcja dla AI – żadnych linków, tylko czysta wiedza
             prompt = f"""
             Jesteś pomocnym asystentem graczy Metin2 na serwerze Balmora. 
             Gracz zadał następujące pytanie: "{zapytanie}"
@@ -71,30 +68,29 @@ async def szukaj(ctx, *, zapytanie: str):
             {surowy_tekst}
             
             Na podstawie powyższego tekstu, sformułuj zwięzłą, przyjazną i konkretną odpowiedź na pytanie gracza.
-            Jeśli w tekście nie ma informacji użytecznych do odpowiedzi, poinformuj o tym krótko.
-            Nie wymyślaj własnych informacji, opieraj się tylko na dostarczonym tekście.
+            Wypisz same fakty, bez żadnych wstępów typu "według forum" i bez podawania jakichkolwiek linków czy adresów stron.
+            Jeśli w tekście nie ma informacji do odpowiedzi, napisz po prostu, że nie posiadasz takich danych.
             """
             
-            # AI generuje odpowiedź
             ai_odpowiedz = model.generate_content(prompt).text
             
-            # Pobieranie zdjęcia
+            # Szukanie screena (jeśli gracz pytał o bossa/metina)
             obrazek = post.find('img')
             obrazek_url = None
             if obrazek and obrazek.get('src') and 'emoticons' not in obrazek.get('src') and 'profile' not in obrazek.get('src'):
                 obrazek_url = obrazek.get('src')
                 
-            # Budowa ostatecznej wiadomości
-            wiadomosc_koncowa = f"{ai_odpowiedz}\n\n🔗 *Źródło informacji: {znaleziony_link}*"
+            # Wysyłamy samą treść i opcjonalnie sam obrazek (bez brzydkich linków tekstowych)
+            await ctx.send(ai_odpowiedz)
+            
             if obrazek_url:
-                wiadomosc_koncowa += f"\n**Screen poglądowy:**\n{obrazek_url}"
+                await ctx.send(obrazek_url)
                 
-            await ctx.send(wiadomosc_koncowa)
         else:
-            await ctx.send(f'Znalazłem temat, ale nie umiem go poprawnie odczytać. Sprawdź ręcznie: {znaleziony_link}')
+            await ctx.send('Przeanalizowałem forum, ale struktura strony uniemożliwia odczytanie treści.')
 
     except Exception as e:
-        await ctx.send('Wystąpił błąd w układach scalonych lub podczas łączenia z forum.')
+        await ctx.send('Wystąpił błąd podczas przetwarzania żądania.')
         print(f"Błąd: {e}")
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
